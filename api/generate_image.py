@@ -2,19 +2,14 @@ from http.server import BaseHTTPRequestHandler
 from openai import OpenAI
 import os
 import json
-from typing import Dict, Any
+from flask import Flask, request, jsonify, render_template
 
-# 添加调试信息
-print("环境变量：", os.environ)
-print("OPENAI_API_KEY:", os.environ.get("OPENAI_API_KEY"))
-
-# 尝试从不同的位置获取API密钥
-api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY") or "your-default-api-key"
+app = Flask(__name__, template_folder='templates')
 
 # 创建OpenAI客户端
-client = OpenAI(api_key=api_key)
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-def generate_image(prompt: str) -> Dict[str, Any]:
+def generate_image(prompt: str):
     try:
         response = client.images.generate(
             model="dall-e-3",
@@ -26,31 +21,21 @@ def generate_image(prompt: str) -> Dict[str, Any]:
     except Exception as e:
         return {"error": str(e)}
 
+@app.route('/', methods=['GET'])
+def index():
+    return render_template('index.html')
+
+@app.route('/generate-image', methods=['POST'])
+def generate_image_route():
+    data = request.json
+    result = generate_image(data['prompt'])
+    return jsonify(result)
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({"status": "healthy"}), 200
+
+# Vercel需要这个handler函数
 def handler(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            result = generate_image(data['prompt'])
-            return {
-                "statusCode": 200,
-                "body": json.dumps(result),
-                "headers": {
-                    "Content-Type": "application/json"
-                }
-            }
-        except json.JSONDecodeError:
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"error": "Invalid JSON"}),
-                "headers": {
-                    "Content-Type": "application/json"
-                }
-            }
-    else:
-        return {
-            "statusCode": 405,
-            "body": json.dumps({"error": "Method not allowed"}),
-            "headers": {
-                "Content-Type": "application/json"
-            }
-        }
+    with app.request_context(request):
+        return app.full_dispatch_request()
