@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI绘图</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #result {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI绘图</h1>
+    <form id="imageForm">
+        <label for="prompt">输入提示词:</label>
+        <input type="text" id="prompt" name="prompt" required>
+        <button type="submit">生成图像</button>
+    </form>
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('imageForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const prompt = document.getElementById('prompt').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.innerHTML = '正在生成图像...';
+            
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 108000); // 28 秒超时
+
+                const response = await fetch('/generate-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt }),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error('生成图像失败');
+                }
+                
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                resultDiv.innerHTML = `<img src="${data.image}" alt="生成的图像">`;
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    resultDiv.innerHTML = '请求超时，请稍后重试。';
+                } else {
+                    resultDiv.innerHTML = `错误: ${error.message}`;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
